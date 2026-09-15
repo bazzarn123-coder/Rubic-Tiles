@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ruby cube match</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Scrambled Rubik's cube aesthetic background */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.15;
+            pointer-events: none;
+            background-image: 
+                linear-gradient(90deg, #111 4px, transparent 4px),
+                linear-gradient(0deg, #111 4px, transparent 4px),
+                linear-gradient(45deg, #ffd700 25%, #ff5800 25%, #ff5800 50%, #c41e3a 50%, #c41e3a 75%, #0051ba 75%, #0051ba);
+            background-size: 40px 40px, 40px 40px, 120px 120px;
+            background-position: 0 0, 0 0, 10px 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 350px;
+        }
+        .section-title {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Top Section Layout: Restart Button to the left of Larger Target Image */
+        .top-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .restart-btn {
+            background-color: #333;
+            border: 1px solid #555;
+            color: white;
+            padding: 10px 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            text-align: center;
+            height: 200px;
+        }
+        .restart-btn:active {
+            background-color: #444;
+        }
+
+        .target-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Target Rubik's Face (Top) - Made even larger (200px) */
+        .target-grid {
+            display: grid;
+            gap: 2px;
+            background: #000;
+            padding: 5px;
+            border-radius: 8px;
+            width: 200px;
+            height: 200px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            border: 2px solid #333;
+        }
+        .target-tile {
+            width: 100%;
+            height: 100%;
+            border-radius: 2px;
+            border: 1px solid rgba(0,0,0,0.3);
+        }
+
+        /* Interactive Puzzle Grid (Bottom) */
+        .puzzle-grid {
+            display: grid;
+            gap: 4px;
+            background: #000;
+            padding: 8px;
+            border-radius: 12px;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            margin-bottom: 12px;
+            position: relative;
+            border: 3px solid #2a2a2a;
+        }
+        .puzzle-tile {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            font-weight: bold;
+            border: 1px solid rgba(0,0,0,0.7);
+            box-shadow: inset 0 3px 4px rgba(255,255,255,0.4), inset 0 -3px 4px rgba(0,0,0,0.5);
+        }
+        .puzzle-tile.empty {
+            background: #111 !important;
+            border: 1px dashed #333;
+            box-shadow: none;
+        }
+        .stats {
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 15px;
+        }
+
+        /* Splash Screen Overlay */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #splash-screen.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .splash-content {
+            background: #2c2c2c;
+            padding: 25px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 300px;
+            width: 90%;
+        }
+        .splash-content h2 {
+            color: #4caf50;
+            font-size: 1.8rem;
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+        .splash-content p {
+            font-size: 1rem;
+            color: #ddd;
+            margin-bottom: 20px;
+        }
+        .splash-content button {
+            background-color: #ff5722;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            width: 100%;
+        }
+        .splash-content button:active {
+            background-color: #e64a19;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Level Indicator -->
+        <div class="section-title" id="levelIndicator" style="margin-top: 10px;">Level 1 (3x3)</div>
+
+        <!-- Top Section: Restart Button next to Even Larger Target Picture -->
+        <div class="top-section">
+            <button class="restart-btn" onclick="restartLevel()">Restart Level</button>
+            <div class="target-container">
+                <div class="section-title">Target Picture</div>
+                <div class="target-grid" id="targetGrid"></div>
+            </div>
+        </div>
+
+        <!-- Puzzle Board (Bottom) -->
+        <div class="section-title">Play Board</div>
+        <div class="puzzle-grid" id="puzzleGrid"></div>
+
+        <div class="stats">
+            <div>Moves: <span id="moveCount">0</span></div>
+            <div>Time: <span id="timer">00:00</span></div>
+        </div>
+    </div>
+
+    <!-- Complete Splash Screen Overlay -->
+    <div id="splash-screen">
+        <div class="splash-content">
+            <h2>Level Complete!</h2>
+            <p id="final-time-text">Time: 00:00</p>
+            <button onclick="nextLevel()">Next Level</button>
+        </div>
+    </div>
+
+    <script>
+        const COLOR_MAP = {
+            'yellow': '#ffd700',
+            'orange': '#ff5800',
+            'blue': '#0051ba',
+            'green': '#009e60',
+            'red': '#c41e3a',
+            'white': '#ffffff'
+        };
+        const COLOR_KEYS = Object.keys(COLOR_MAP);
+
+        let currentSize = 3; // Starts at 3x3
+        let targetPattern = []; 
+        let boardState = [];    
+        let emptyPos = { r: 2, c: 2 };
+        let moves = 0;
+        let isWon = false;
+
+        let startTime = null;
+        let timerInterval = null;
+
+        let touchStartPos = null;
+        let activeTilePos = null;
+
+        function getRandomColorKey() {
+            return COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
+        }
+
+        function generateTarget() {
+            targetPattern = [];
+            for (let r = 0; r < currentSize; r++) {
+                let row = [];
+                for (let c = 0; c < currentSize; c++) {
+                    row.push(getRandomColorKey());
+                }
+                targetPattern.push(row);
+            }
+        }
+
+        function renderTarget() {
+            const container = document.getElementById('targetGrid');
+            container.style.gridTemplateColumns = `repeat(${currentSize}, 1fr)`;
+            container.style.gridTemplateRows = `repeat(${currentSize}, 1fr)`;
+            container.innerHTML = '';
+            
+            for (let r = 0; r < currentSize; r++) {
+                for (let c = 0; c < currentSize; c++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'target-tile';
+                    tile.style.backgroundColor = COLOR_MAP[targetPattern[r][c]];
+                    container.appendChild(tile);
+                }
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+                const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+                const secs = String(elapsedSeconds % 60).padStart(2, '0');
+                document.getElementById('timer').textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function initGame() {
+            document.getElementById('splash-screen').classList.remove('active');
+
+            moves = 0;
+            isWon = false;
+            document.getElementById('moveCount').textContent = moves;
+            document.getElementById('timer').textContent = "00:00";
+            document.getElementById('levelIndicator').textContent = `Level ${currentSize - 2} (${currentSize}x${currentSize})`;
+
+            generateTarget();
+            renderTarget();
+
+            boardState = targetPattern.map(row => [...row]);
+            emptyPos = { r: currentSize - 1, c: currentSize - 1 };
+            boardState[emptyPos.r][emptyPos.c] = null;
+
+            let shuffleSteps = currentSize * currentSize * 25;
+            let lastEmptyPos = { ...emptyPos };
+
+            for (let i = 0; i < shuffleSteps; i++) {
+                let neighbors = getValidNeighbors(emptyPos.r, emptyPos.c);
+                neighbors = neighbors.filter(n => !(n.r === lastEmptyPos.r && n.c === lastEmptyPos.c));
+                if (neighbors.length === 0) neighbors = getValidNeighbors(emptyPos.r, emptyPos.c);
+
+                let chosen = neighbors[Math.floor(Math.random() * neighbors.length)];
+                lastEmptyPos = { ...emptyPos };
+                
+                boardState[emptyPos.r][emptyPos.c] = boardState[chosen.r][chosen.c];
+                boardState[chosen.r][chosen.c] = null;
+                emptyPos = chosen;
+            }
+
+            if (checkWinConditionInternal()) {
+                initGame();
+                return;
+            }
+
+            renderBoard();
+            startTimer();
+        }
+
+        function restartLevel() {
+            initGame();
+        }
+
+        function nextLevel() {
+            currentSize++;
+            initGame();
+        }
+
+        function getValidNeighbors(r, c) {
+            let neighbors = [];
+            let maxIdx = currentSize - 1;
+            if (r > 0) neighbors.push({ r: r - 1, c: c });
+            if (r < maxIdx) neighbors.push({ r: r + 1, c: c });
+            if (c > 0) neighbors.push({ r: r, c: c - 1 });
+            if (c < maxIdx) neighbors.push({ r: r, c: c + 1 });
+            return neighbors;
+        }
+
+        function renderBoard() {
+            const container = document.getElementById('puzzleGrid');
+            container.style.gridTemplateColumns = `repeat(${currentSize}, 1fr)`;
+            container.innerHTML = '';
+
+            for (let r = 0; r < currentSize; r++) {
+                for (let c = 0; c < currentSize; c++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'puzzle-tile';
+                    tile.dataset.row = r;
+                    tile.dataset.col = c;
+                    
+                    let colorKey = boardState[r][c];
+                    if (colorKey === null) {
+                        tile.classList.add('empty');
+                    } else {
+                        tile.style.backgroundColor = COLOR_MAP[colorKey];
+                    }
+                    container.appendChild(tile);
+                }
+            }
+        }
+
+        const boardGrid = document.getElementById('puzzleGrid');
+
+        function getCoordFromEvent(e) {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const target = document.elementFromPoint(clientX, clientY);
+            if (target && target.classList.contains('puzzle-tile')) {
+                return {
+                    r: parseInt(target.dataset.row),
+                    c: parseInt(target.dataset.col)
+                };
+            }
+            return null;
+        }
+
+        boardGrid.addEventListener('pointerdown', (e) => {
+            if (isWon) return;
+            const coords = getCoordFromEvent(e);
+            if (coords && boardState[coords.r][coords.c] !== null) {
+                activeTilePos = coords;
+                touchStartPos = { 
+                    x: e.clientX || e.touches[0].clientX, 
+                    y: e.clientY || e.touches[0].clientY 
+                };
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!activeTilePos || !touchStartPos || isWon) return;
+
+            const currentX = e.clientX || (e.touches ? e.touches[0].clientX : touchStartPos.x);
+            const currentY = e.clientY || (e.touches ? e.touches[0].clientY : touchStartPos.y);
+
+            const diffX = currentX - touchStartPos.x;
+            const diffY = currentY - touchStartPos.y;
+            const threshold = 15; 
+
+            if (Math.abs(diffX) > threshold || Math.abs(diffY) > threshold) {
+                let direction = null;
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    direction = diffX > 0 ? 'RIGHT' : 'LEFT';
+                } else {
+                    direction = diffY > 0 ? 'DOWN' : 'UP';
+                }
+
+                attemptSlide(activeTilePos, direction);
+                activeTilePos = null;
+                touchStartPos = null;
+            }
+        });
+
+        window.addEventListener('pointerup', () => {
+            activeTilePos = null;
+            touchStartPos = null;
+        });
+
+        function attemptSlide(startPos, direction) {
+            let r = startPos.r;
+            let c = startPos.c;
+            let er = emptyPos.r;
+            let ec = emptyPos.c;
+
+            let canSlide = false;
+            let path = [];
+
+            if (r === er) {
+                if (direction === 'LEFT' && c > ec) {
+                    canSlide = true;
+                    for (let col = ec + 1; col <= c; col++) path.push({ r: r, c: col });
+                } else if (direction === 'RIGHT' && c < ec) {
+                    canSlide = true;
+                    for (let col = ec - 1; col >= c; col--) path.push({ r: r, c: col });
+                }
+            } else if (c === ec) {
+                if (direction === 'UP' && r > er) {
+                    canSlide = true;
+                    for (let row = er + 1; row <= r; row++) path.push({ r: row, c: c });
+                } else if (direction === 'DOWN' && r < er) {
+                    canSlide = true;
+                    for (let row = er - 1; row >= r; row--) path.push({ r: row, c: c });
+                }
+            }
+
+            if (canSlide && path.length > 0) {
+                let currentEmpty = { r: er, c: ec };
+                
+                for (let i = 0; i < path.length; i++) {
+                    let targetTileCoord = path[i];
+                    boardState[currentEmpty.r][currentEmpty.c] = boardState[targetTileCoord.r][targetTileCoord.c];
+                    currentEmpty = targetTileCoord;
+                }
+                boardState[currentEmpty.r][currentEmpty.c] = null;
+                emptyPos = currentEmpty;
+
+                moves++;
+                document.getElementById('moveCount').textContent = moves;
+
+                if (checkWinConditionInternal()) {
+                    boardState[emptyPos.r][emptyPos.c] = targetPattern[emptyPos.r][emptyPos.c];
+                    renderBoard();
+
+                    isWon = true;
+                    stopTimer();
+
+                    const finalTimeStr = document.getElementById('timer').textContent;
+                    document.getElementById('final-time-text').textContent = `Time: ${finalTimeStr} (${moves} moves)`;
+                    setTimeout(() => {
+                        document.getElementById('splash-screen').classList.add('active');
+                    }, 250);
+                } else {
+                    renderBoard();
+                }
+            }
+        }
+
+        function checkWinConditionInternal() {
+            for (let r = 0; r < currentSize; r++) {
+                for (let c = 0; c < currentSize; c++) {
+                    if (boardState[r][c] !== null && boardState[r][c] !== targetPattern[r][c]) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
