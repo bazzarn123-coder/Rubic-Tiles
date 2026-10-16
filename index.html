@@ -183,13 +183,23 @@
             height: 100%;
             object-fit: contain;
         }
-        .start-btn {
+        .start-buttons {
             position: absolute;
             top: 73%;
             left: 50%;
             transform: translate(-50%, -50%);
-            padding: 14px 40px;
-            font-size: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 80%;
+            max-width: 280px;
+            align-items: center;
+        }
+        .start-btn {
+            position: relative;
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 1.1rem;
             font-weight: 800;
             color: #ffffff;
             background: linear-gradient(135deg, #ff5722, #ff2a00);
@@ -200,9 +210,10 @@
             text-transform: uppercase;
             letter-spacing: 1.5px;
             transition: transform 0.1s ease, background 0.2s ease;
+            text-align: center;
         }
         .start-btn:active {
-            transform: translate(-50%, -48%) scale(0.96);
+            transform: scale(0.96);
             background: linear-gradient(135deg, #e64a19, #d82300);
         }
 
@@ -294,7 +305,10 @@
     <div id="start-splash">
         <div class="start-splash-container">
             <img src="cube.jpg" alt="Rubik Tiles Splash" class="start-splash-bg">
-            <button class="start-btn" onclick="startGame()">Start Game</button>
+            <div class="start-buttons">
+                <button class="start-btn" id="continueBtn" onclick="continueGame()" style="display: none;">Continue Game</button>
+                <button class="start-btn" id="startBtn" onclick="startGame()">New Game</button>
+            </div>
         </div>
     </div>
 
@@ -331,6 +345,15 @@
         let touchStartPos = null;
         let activeTilePos = null;
 
+        // Check for existing save game on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('rubik_puzzle_save');
+            const continueBtn = document.getElementById('continueBtn');
+            if (saved && continueBtn) {
+                continueBtn.style.display = 'block';
+            }
+        });
+
         function getRandomColorKey() {
             return COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
         }
@@ -362,9 +385,9 @@
             }
         }
 
-        function startTimer() {
+        function startTimer(initialSeconds = 0) {
             clearInterval(timerInterval);
-            startTime = Date.now();
+            startTime = Date.now() - (initialSeconds * 1000);
             timerInterval = setInterval(() => {
                 const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
                 const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
@@ -377,9 +400,58 @@
             clearInterval(timerInterval);
         }
 
+        function saveGame() {
+            if (isWon) {
+                localStorage.removeItem('rubik_puzzle_save');
+                return;
+            }
+            const currentElapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+            const saveData = {
+                currentSize,
+                targetPattern,
+                boardState,
+                emptyPos,
+                moves,
+                elapsedSeconds: currentElapsed
+            };
+            localStorage.setItem('rubik_puzzle_save', JSON.stringify(saveData));
+        }
+
         function startGame() {
+            localStorage.removeItem('rubik_puzzle_save');
+            currentSize = 3;
             document.getElementById('start-splash').classList.add('hidden');
             initGame();
+        }
+
+        function continueGame() {
+            const saved = localStorage.getItem('rubik_puzzle_save');
+            if (!saved) {
+                startGame();
+                return;
+            }
+            try {
+                const data = JSON.parse(saved);
+                currentSize = data.currentSize;
+                targetPattern = data.targetPattern;
+                boardState = data.boardState;
+                emptyPos = data.emptyPos;
+                moves = data.moves;
+
+                document.getElementById('start-splash').classList.add('hidden');
+                document.getElementById('splash-screen').classList.remove('active');
+
+                document.getElementById('moveCount').textContent = moves;
+                document.getElementById('levelIndicator').textContent = `Level ${currentSize - 2} (${currentSize}x${currentSize})`;
+
+                renderTarget();
+                renderBoard();
+                startTimer(data.elapsedSeconds || 0);
+            } catch (e) {
+                console.error("Failed to load saved game", e);
+                localStorage.removeItem('rubik_puzzle_save');
+                startGame();
+            }
         }
 
         function initGame() {
@@ -420,7 +492,8 @@
             }
 
             renderBoard();
-            startTimer();
+            startTimer(0);
+            saveGame();
         }
 
         function restartLevel() {
@@ -568,6 +641,7 @@
 
                     isWon = true;
                     stopTimer();
+                    localStorage.removeItem('rubik_puzzle_save');
 
                     const finalTimeStr = document.getElementById('timer').textContent;
                     document.getElementById('final-time-text').textContent = `Time: ${finalTimeStr} (${moves} moves)`;
@@ -576,6 +650,7 @@
                     }, 250);
                 } else {
                     renderBoard();
+                    saveGame();
                 }
             }
         }
